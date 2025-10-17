@@ -2,10 +2,10 @@ import mysql.connector
 
 def get_connection():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",  # cambia si usas otro usuario
-        password="admin",
-        database="coffeemanager"
+        host="mysql-jhonatan.alwaysdata.net",
+        user="jhonatan_admin",  # cambia si usas otro usuario
+        password="Mynameisjhonax",
+        database="jhonatan_cofee"
     )
 
 def insertar_cliente(nombre):
