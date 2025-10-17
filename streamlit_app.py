@@ -4,7 +4,7 @@ from app.producto import Producto
 from app.pedido import Pedido
 from app.facturacion import calcular_factura
 import base64
-
+from app.db import insertar_cliente, insertar_producto, crear_pedido, obtener_clientes, obtener_productos
 
 # --- Fondo con imagen ---
 def set_background(image_file: str):
@@ -19,29 +19,43 @@ def set_background(image_file: str):
         background-repeat: no-repeat;
         background-attachment: fixed;
     }}
+    table {{
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }}
+    th, td {{
+        border: 1px solid #ffbe5f;
+        padding: 8px;
+        text-align: left;
+        color: white;
+    }}
+    th {{
+        background-color: #a05638;
+    }}
+    tr:nth-child(even) {{
+        background-color: rgba(255, 255, 255, 0.05);
+    }}
     </style>
     """
     st.markdown(css, unsafe_allow_html=True)
-
 
 set_background("fondocoffe6.jpg")
 
 # --- Inicialización de estado ---
 if "clientes" not in st.session_state:
-    st.session_state.clientes = ["Joan Pérez", "Ana Gomes", "Carlos Rojas"]
+    st.session_state.clientes = obtener_clientes()
 
 if "productos" not in st.session_state:
-    st.session_state.productos = {
-        "Jugo": 8.0,
-        "Café": 10.0,
-        "Tostada": 5.0
-    }
+    st.session_state.productos = obtener_productos()
 
 if "vista" not in st.session_state:
     st.session_state.vista = "principal"
 
 if "pedidos" not in st.session_state:
-    st.session_state.pedidos = []
+    from app.db import obtener_pedidos
+    st.session_state.pedidos = obtener_pedidos()
+
 
 # --- Estilos personalizados ---
 st.markdown(
@@ -50,15 +64,12 @@ st.markdown(
     [data-testid="stSidebar"] {
         background-color: #23140b !important;
     }
-
     .stApp {
         background-color: transparent;
     }
-
     html, body, [class*="css"] {
         color: white !important;
     }
-
     .titulo {
         position: relative;
         top: -35px;
@@ -68,7 +79,6 @@ st.markdown(
         font-weight: bold;
         margin-bottom: 5px;
     }
-
     .seccion {
         background-color: rgba(0, 0, 0, 0.85);
         padding: 10px;
@@ -77,12 +87,10 @@ st.markdown(
         font-size: 22px;
         margin-top: 20px;
     }
-
     .texto {
         color: white;
         font-size: 18px;
     }
-
     .tarjeta {
         background-color: rgba(0, 0, 0, 0.85);
         padding: 20px;
@@ -91,7 +99,6 @@ st.markdown(
         margin-top: 20px;
         border: 1px solid #ffbe5f;
     }
-
     .alerta-verde {
         background-color: #4CAF50;
         padding: 10px;
@@ -101,20 +108,17 @@ st.markdown(
         text-align: center;
         margin-top: 20px;
     }
-
     button {
         background-color: #a05638 !important;
         color: white !important;
         font-weight: bold !important;
         border: none !important;
     }
-
     input, textarea, select {
         background-color: #000000 !important;
         color: white !important;
         border: 1px solid #db824a !important;
     }
-
     .stMultiSelect, .stSelectbox {
         background-color: #000000 !important;
         color: white !important;
@@ -150,15 +154,21 @@ if st.sidebar.button("📋 Listar Pedidos"):
 # --- Vistas dinámicas ---
 if st.session_state.vista == "listar_clientes":
     st.markdown("<div class='titulo'>👥 Clientes Registrados</div>", unsafe_allow_html=True)
-    for c in st.session_state.clientes:
-        st.markdown(f"<div class='texto'>• {c}</div>", unsafe_allow_html=True)
+    tabla = "<table><tr><th>#</th><th>Nombre</th></tr>"
+    for i, c in enumerate(st.session_state.clientes, 1):
+        tabla += f"<tr><td>{i}</td><td>{c}</td></tr>"
+    tabla += "</table>"
+    st.markdown(tabla, unsafe_allow_html=True)
     if st.button("🔙 Volver"):
         st.session_state.vista = "principal"
 
 elif st.session_state.vista == "listar_productos":
     st.markdown("<div class='titulo'>📦 Productos Registrados</div>", unsafe_allow_html=True)
+    tabla = "<table><tr><th>Producto</th><th>Precio (Bs)</th></tr>"
     for nombre, precio in st.session_state.productos.items():
-        st.markdown(f"<div class='texto'>• {nombre}: {precio:.2f} Bs</div>", unsafe_allow_html=True)
+        tabla += f"<tr><td>{nombre}</td><td>{precio:.2f}</td></tr>"
+    tabla += "</table>"
+    st.markdown(tabla, unsafe_allow_html=True)
     if st.button("🔙 Volver"):
         st.session_state.vista = "principal"
 
@@ -168,6 +178,7 @@ elif st.session_state.vista == "registrar_cliente":
     if st.button("Agregar cliente"):
         if nuevo_cliente and nuevo_cliente not in st.session_state.clientes:
             st.session_state.clientes.append(nuevo_cliente)
+            insertar_cliente(nuevo_cliente)
             st.markdown("<div class='alerta-verde'>✅ Cliente agregado correctamente</div>", unsafe_allow_html=True)
         else:
             st.warning("Nombre inválido o ya registrado.")
@@ -181,6 +192,7 @@ elif st.session_state.vista == "registrar_producto":
     if st.button("Agregar producto"):
         if nombre_producto and precio_producto > 0:
             st.session_state.productos[nombre_producto] = precio_producto
+            insertar_producto(nombre_producto, precio_producto)
             st.markdown("<div class='alerta-verde'>✅ Producto agregado correctamente</div>", unsafe_allow_html=True)
         else:
             st.warning("Completa ambos campos correctamente.")
@@ -189,20 +201,29 @@ elif st.session_state.vista == "registrar_producto":
 
 elif st.session_state.vista == "listar_pedidos":
     st.markdown("<div class='titulo'>📋 Pedidos Realizados</div>", unsafe_allow_html=True)
-
     if not st.session_state.pedidos:
         st.markdown("<div class='texto'>No hay pedidos registrados aún.</div>", unsafe_allow_html=True)
     else:
         for i, registro in enumerate(st.session_state.pedidos, 1):
             pedido = registro["pedido"]
             factura = registro["factura"]
-            st.markdown(f"<div class='seccion'>🧑‍💼 Pedido #{i}</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='texto'><strong>Cliente:</strong> {pedido.cliente}</div>", unsafe_allow_html=True)
+            tabla = f"""
+            <div class='tarjeta'>
+                <div class='texto'><strong>🧑‍💼 Pedido #{i}</strong></div>
+                <div class='texto'><strong>Cliente:</strong> {pedido.cliente}</div>
+                <table>
+                    <tr><th>Producto</th><th>Precio (Bs)</th></tr>
+            """
             for producto in pedido.productos:
-                st.markdown(f"<div class='texto'>• {producto.nombre}: {producto.precio:.2f} Bs</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='texto'><strong>Subtotal:</strong> {factura['subtotal']:.2f} Bs</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='texto'><strong>IVA:</strong> {factura['iva']:.2f} Bs</div>", unsafe_allow_html=True)
-            st.markdown(f"<div class='texto'><strong>Total:</strong> {factura['total']:.2f} Bs</div>", unsafe_allow_html=True)
+                tabla += f"<tr><td>{producto.nombre}</td><td>{producto.precio:.2f}</td></tr>"
+            tabla += f"""
+                </table>
+                <div class='texto'><strong>Subtotal:</strong> {factura['subtotal']:.2f} Bs</div>
+                <div class='texto'><strong>IVA:</strong> {factura['iva']:.2f} Bs</div>
+                <div class='texto'><strong>Total:</strong> {factura['total']:.2f} Bs</div>
+            </div>
+            """
+        st.markdown(tabla, unsafe_allow_html=True)
 
     if st.button("🔙 Volver"):
         st.session_state.vista = "principal"
@@ -229,32 +250,38 @@ elif st.session_state.vista == "principal":
         )
 
         if st.button("💰 Realizar Pedido"):
-            pedido = Pedido(cliente_seleccionado)
-            for nombre in productos_seleccionados:
-                producto = Producto(nombre, st.session_state.productos[nombre])
-                pedido.agregar_producto(producto)
+            if cliente_seleccionado and productos_seleccionados:
+                pedido = Pedido(cliente_seleccionado)
+                for nombre in productos_seleccionados:
+                    producto = Producto(nombre, st.session_state.productos[nombre])
+                    pedido.agregar_producto(producto)
 
-            subtotal = pedido.calcular_total()
-            factura = calcular_factura(subtotal)
+                subtotal = float(pedido.calcular_total())
+                factura = calcular_factura(subtotal)
 
-            st.session_state.factura = factura
-            st.session_state.productos_pedido = productos_seleccionados
 
-            st.session_state.pedidos.append({
-                "cliente": cliente_seleccionado,
-                "pedido": pedido,
-                "factura": factura
-            })
+                st.session_state.factura = factura
+                st.session_state.productos_pedido = productos_seleccionados
 
-            st.markdown(
-                """
-                <div style='background-color:#4CAF50; padding:10px; border-radius:8px;
-                color:white; font-weight:bold; text-align:center; margin-top:20px;'>
-                    ✅ Pedido realizado correctamente
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+                crear_pedido(cliente_seleccionado, [(p.nombre, p.precio) for p in pedido.productos])
+
+                st.session_state.pedidos.append({
+                    "cliente": cliente_seleccionado,
+                    "pedido": pedido,
+                    "factura": factura
+                })
+
+                st.markdown(
+                    """
+                    <div style='background-color:#4CAF50; padding:10px; border-radius:8px;
+                    color:white; font-weight:bold; text-align:center; margin-top:20px;'>
+                        ✅ Pedido realizado correctamente
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+            else:
+                st.warning("Selecciona un cliente y al menos un producto.")
 
     with col2:
         if "factura" in st.session_state and st.session_state.factura is not None:
