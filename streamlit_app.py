@@ -162,15 +162,38 @@ if st.session_state.vista == "listar_clientes":
     if st.button("🔙 Volver"):
         st.session_state.vista = "principal"
 
-elif st.session_state.vista == "listar_productos":
-    st.markdown("<div class='titulo'>📦 Productos Registrados</div>", unsafe_allow_html=True)
-    tabla = "<table><tr><th>Producto</th><th>Precio (Bs)</th></tr>"
-    for nombre, precio in st.session_state.productos.items():
-        tabla += f"<tr><td>{nombre}</td><td>{precio:.2f}</td></tr>"
-    tabla += "</table>"
-    st.markdown(tabla, unsafe_allow_html=True)
+elif st.session_state.vista == "listar_pedidos":
+    st.markdown("<div class='titulo'>📋 Pedidos Realizados</div>", unsafe_allow_html=True)
+    if not st.session_state.pedidos:
+        st.markdown("<div class='texto'>No hay pedidos registrados aún.</div>", unsafe_allow_html=True)
+    else:
+        pedidos_html = ""
+        for i, registro in enumerate(st.session_state.pedidos, 1):
+            pedido = registro["pedido"]
+            factura = registro["factura"]
+            tarjeta = f"""
+            <div class='tarjeta'>
+                <div class='texto'><strong>🧑‍💼 Pedido #{i}</strong></div>
+                <div class='texto'><strong>Cliente:</strong> {pedido.cliente}</div>
+                <table>
+                    <tr><th>Producto</th><th>Precio (Bs)</th></tr>
+            """
+            for producto in pedido.productos:
+                tarjeta += f"<tr><td>{producto.nombre}</td><td>{producto.precio:.2f}</td></tr>"
+            tarjeta += f"""
+                </table>
+                <div class='texto'><strong>Subtotal:</strong> {factura['subtotal']:.2f} Bs</div>
+                <div class='texto'><strong>IVA:</strong> {factura['iva']:.2f} Bs</div>
+                <div class='texto'><strong>Total:</strong> {factura['total']:.2f} Bs</div>
+            </div>
+            """
+            pedidos_html += tarjeta
+
+        st.markdown(pedidos_html, unsafe_allow_html=True)
+
     if st.button("🔙 Volver"):
         st.session_state.vista = "principal"
+
 
 elif st.session_state.vista == "registrar_cliente":
     st.markdown("<div class='titulo'>➕ Registrar Cliente</div>", unsafe_allow_html=True)
